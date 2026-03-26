@@ -2,3 +2,6 @@ Echo, Miniature Schnauzer, 7, Black
 Lola, Bombay, 11, Black
 Choppie, Mediterranean Chameleon, 4, all
 George, Labrador, 18, Cinnamon Brown
+Willow, Little Owl, 2, Taupe & White
+Sasha, German Shepard, 13, Brown and Black
+Leah, Birman, 17, Red point
