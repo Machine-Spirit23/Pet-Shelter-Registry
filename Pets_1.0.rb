@@ -1,3 +1,24 @@
+# Pet Shelter Registry — Version 1.0
+# Author: Fotis Markou
+# ============================================================
+# Version History:
+#   v1.0 — March 2026
+#     - Menu system replacing pick_mode (begin...end until loop)
+#     - Array-based storage (read once, use everywhere)
+#     - Search with case-insensitive matching (.downcase)
+#     - Delete with duplicate handling
+#     - Edit with field sub-menu (name, breed, age, colour)
+#     - Multi-delete loop (Yes/No prompt)
+#     - find_pet shared method (used by search, delete, edit)
+#     - Ghost pet guard in read_pets_from_file (skips blank lines)
+#     - File rewrite for delete and edit operations ("w" mode)
+#     - Refactored for modularity (shared methods, reduced duplication)
+#
+#   v0 — Pets.rb (original)
+#     - Read or write only (pick_mode)
+#     - Single-use: one operation then exit
+# ============================================================
+
 require './input_functions'
 puts("Welcome to the Pet Shelter Registry! \\(^.^)/ \n\n What would you like to do?")
 
