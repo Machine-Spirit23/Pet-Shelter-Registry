@@ -1,5 +1,5 @@
 require './input_functions'
-puts("Welcome to the Pet Shelter Registry! \\(^.^)/ \n\n")
+puts("Welcome to the Pet Shelter Registry! \\(^.^)/ \n\n What would you like to do?")
 
 # Pet class — stores a single pet's details (name, breed, age, colour).
 # Used as the composite data type for both reading from and writing to file.
@@ -59,6 +59,7 @@ def read_pets_from_file(pet_filename)
   pet_file = File.new(pet_filename, "r")
     until pet_file.eof?           # until = mirror of while; loops while condition is false ("until end of file")
       a_pet = read_pet(pet_file)  # read_pet reads one line, builds one Pet object, returns it
+      next if a_pet.name.nil? || a_pet.name.empty?  # skip blank lines — prevents ghost pets with nil names
       pets.push(a_pet)            # .push adds the Pet object to the end of the array
     end
   pet_file.close()
@@ -71,9 +72,9 @@ end
 def get_pet()
     new_pet_name = read_string("What is your pets name? ")
     new_pet_breed = read_string("What is your pets breed?")
-    new_pet_age  = read_string("What is your pets age?")
+    new_pet_age  = read_integer("What is your pets age?")
     new_pet_colour  = read_string("What is your pets colour?")
-    new_pet = Pet.new(new_pet_name, new_pet_breed, new_pet_age.to_i, new_pet_colour)
+    new_pet = Pet.new(new_pet_name, new_pet_breed, new_pet_age, new_pet_colour)
   return new_pet
 end
 
@@ -88,35 +89,58 @@ def write_pet(pet_filename, new_pet)
 end
 
 
-# Searches for a pet by name in the array.
-# Takes the pets array as a parameter — loops through every pet checking for a match.
-# Uses .downcase on BOTH sides of the comparison so the search is case-insensitive:
-#   "echo", "ECHO", "Echo" all match "Echo" in the registry.
-#   .downcase only affects the comparison — the actual pet name stays unchanged.
-# Uses a boolean flag (found) to track whether any match was found:
-#   - Starts as false (nothing found yet)
-#   - Flips to true when a match is found
-#   - After the loop, if still false, prints an error message
-# IMPORTANT: i += 1 must be OUTSIDE the if block — otherwise the loop freezes
-#   when a pet doesn't match (i never increments, condition never changes).
-def search_pet(pets)
-  name = read_string("Who are you looking for?")
-  found = false                                     # flag: no match found yet
+# Shared method — searches the pets array by name and handles duplicate selection.
+# Used by search_pet, delete_pet, and edit_pet to avoid repeating the same pattern.
+# Returns the INDEX (position) of the chosen pet in the pets array, or -1 if not found.
+# Three cases:
+#   - Multiple matches: shows a numbered list, lets user pick → returns chosen position
+#   - Single match: returns that position directly
+#   - No match: returns -1
+# The prompt parameter lets each caller customise the question (e.g. "remove" vs "edit").
+def find_pet(pets, prompt)
+  name = read_string(prompt)
+  dupes = []                                         # stores INDICES (positions) of matching pets
+
   i = 0
   while i < pets.length
-    if pets[i].name.downcase == name.downcase        # case-insensitive comparison
-      print_pet(pets[i])                             # print the matching pet
-      puts("\n\n")
-      found = true                                   # flip flag — we found at least one
+    if pets[i].name.downcase == name.downcase         # case-insensitive match
+      dupes.push(i)                                   # save the position in the pets array
     end
-  i += 1                                             # always increment — keeps loop moving
+  i += 1
   end
 
-  unless found                                       # unless = "if not"; only runs if found is still false
+  if dupes.length >= 2                                # multiple pets share the same name
+    puts("#{dupes.length} entries found which #{name} did you want to pick?")
+    i = 0
+    while i < dupes.length
+      puts("#{i + 1}.")                               # display as 1-based (human-friendly)
+      print_pet(pets[dupes[i]])                        # dupes[i] holds the position in pets array
+      i += 1
+    end
+    choice = read_integer_in_range("Which one?", 1, dupes.length)
+    return dupes[choice - 1]                           # convert user's 1-based pick to pets array position
+
+  elsif dupes.length == 1                              # exactly one match — no need to ask
+    return dupes[0]
+
+  else                                                 # no match found
     puts("#{name}, was not found in the registry.")
+    return -1
   end
-
 end
+
+
+# Searches for a pet by name and displays the result.
+# Uses find_pet for the search — if found, prints the pet's details.
+# search_pet is the only caller that doesn't modify anything — display only.
+def search_pet(pets)
+  target = find_pet(pets, "Who are you looking for?")
+  if target != -1
+    print_pet(pets[target])
+    puts("\n\n")
+  end
+end
+
 # VERSION 1.0 CHANGE: pick_mode replaced by menu_main (below).
 # pick_mode only allowed read OR write, then exited.
 # menu_main loops until the user chooses to exit, allowing multiple operations per session.
@@ -138,41 +162,142 @@ end
 #end
 
 
+# Rewrites the entire pets file from the current array.
+# Uses "w" (write) mode — wipes the file clean and writes everything fresh.
+# This is the only way to "delete" or "edit" in a text file — you can't
+# surgically remove or change one line, so you rewrite the whole thing.
+# Called by delete_pet (and future edit_pet) after modifying the array.
+def rewrite_pets_file(pet_filename, pets)
+
+    pet_file = File.new(pet_filename, "w")  # "w" = write mode — creates a blank file (overwrites existing)
+
+    i = 0
+    while i < pets.length
+    pet_file.puts("#{pets[i].name}, #{pets[i].breed}, #{pets[i].age}, #{pets[i].colour}")
+    i += 1
+    end
+    pet_file.close()
+
+end
+
+
+# Deletes a pet from the array and rewrites the file.
+# Uses find_pet to locate the target — all search and duplicate logic is handled there.
+# If find_pet returns a valid position, deletes the pet and rewrites the file.
+# If find_pet returns -1, the "not found" message was already printed by find_pet.
+def delete_pet(pet_filename, pets)
+  target = find_pet(pets, "Which pet would you like to remove?")
+
+  if target != -1
+    puts("#{pets[target].name} has been removed from the registry.")
+    pets.delete_at(target)
+    rewrite_pets_file(pet_filename, pets)
+
+    again = read_string("Would you like to delete another pet? [Yes/No]")
+    while again.downcase == "yes"
+      target = find_pet(pets, "Which pet would you like to remove?")
+      if target != -1
+        puts("#{pets[target].name} has been removed from the registry.")
+        pets.delete_at(target)
+        rewrite_pets_file(pet_filename, pets)
+      end
+      again = read_string("Would you like to delete another pet? [Yes/No]")
+    end
+  end
+
+end
+
+
+# Edits a pet's attributes in the array and rewrites the file.
+# Uses find_pet to locate the target — all search and duplicate logic is handled there.
+# After identifying the target pet, a sub-menu lets the user change
+# one or more fields before exiting. The file is only rewritten if
+# at least one edit was made.
+# If find_pet returns -1, the "not found" message was already printed by find_pet.
+def edit_pet(pet_filename, pets)
+  target = find_pet(pets, "Which pet would you like to edit?")
+  edited = false
+
+  if target != -1                                      # only show sub-menu if we found a pet
+    begin
+      puts("What field would you like to edit?")
+      puts("1. Name.")
+      puts("2. Breed.")
+      puts("3. Age.")
+      puts("4. Colour.")
+      puts("5. Done editing.")
+      field_edit = read_integer_in_range("Please enter your choice:", 1, 5)
+      case field_edit
+      when 1
+        new_name = read_string("What is the new name?")
+        pets[target].name = new_name
+        edited = true
+      when 2
+        new_breed = read_string("What is the new breed?")
+        pets[target].breed = new_breed
+        edited = true
+      when 3
+        new_age = read_integer("What is the new age?")
+        pets[target].age = new_age
+        edited = true
+      when 4
+        new_colour = read_string("What is the new colour?")
+        pets[target].colour = new_colour
+        edited = true
+      end
+    end until field_edit == 5
+  end
+
+  if edited                                            # only rewrite the file if something was actually changed
+    rewrite_pets_file(pet_filename, pets)
+  end
+
+end
+
 # Main menu — the heart of the program.
 # Uses a post-test loop (begin...end until) so the menu always displays at least once.
 # The "finished" flag controls the loop:
 #   - Starts as false (keep looping)
-#   - Set to true when user picks Exit (option 4)
+#   - Set to true when user picks Exit (option 6)
 #   - "end until finished" checks AFTER each pass — exits when finished is true
 #
 # IMPORTANT: pets array is loaded ONCE before the loop starts (line below).
-# All menu options (display, add, search) work on this same array in memory.
+# All menu options work on this same array in memory.
 # When a new pet is added (option 2), it is:
 #   1. Written to the file (write_pet) — so it's saved permanently
 #   2. Pushed into the pets array (pets.push) — so it shows up immediately without re-reading the file
 # Without pets.push, a newly added pet wouldn't appear until the program restarts.
+# When a pet is deleted (option 4), delete_pet handles both the array and file rewrite.
 def menu_main()
-    finished = false
-    pets = read_pets_from_file("pets.txt")   # load all pets into array ONCE at startup
-  begin
-    puts("1. Display all pets.")
-    puts("2. Add a pet.")
-    puts("3. Search for a pet.")
-    puts("4. Exit.\n\n")
-    choice = read_integer_in_range("Please enter your choice:", 1, 4)
-    case choice
-    when 1
-      display_pet(pets)                       # pass the array to display — menu is the coordinator
-    when 2
-      new_pet = get_pet()                     # capture-and-pass: get_pet returns a Pet object
-      write_pet("pets.txt", new_pet)          # save to file (permanent)
-      pets.push(new_pet)                      # add to array (in-memory, keeps array in sync with file)
-    when 3
-      search_pet(pets)                        # pass the array to search
-    when 4
-      finished = true                         # flips the flag — loop exits on next "end until" check
-    end
-  end until finished
+  pet_filename = "pets.txt"
+  finished = false
+  pets = read_pets_from_file(pet_filename)   # load all pets into array ONCE at startup
+    begin
+      puts("1. Display all pets.")
+      puts("2. Add a pet.")
+      puts("3. Search for a pet.")
+      puts("4. Delete a pet entry.")
+      puts("5. Edit a pet entry.")
+      puts("6. Exit.\n\n")
+      choice = read_integer_in_range("Please enter your choice:", 1, 6)
+      case choice
+      when 1
+        display_pet(pets)                       # pass the array to display — menu is the coordinator
+      when 2
+        new_pet = get_pet()                     # capture-and-pass: get_pet returns a Pet object
+        write_pet(pet_filename, new_pet)          # save to file (permanent)
+        pets.push(new_pet)                      # add to array (in-memory, keeps array in sync with file)
+      when 3
+        search_pet(pets)                        # pass the array to search
+      when 4
+        delete_pet(pet_filename, pets)
+      when 5 
+        edit_pet(pet_filename, pets)
+      when 6
+        puts("Goodbye (-_-)zzz")
+        finished = true                         # flips the flag — loop exits on next "end until" check
+      end
+    end until finished
 end
 
 # Entry point — calls menu_main to start the program.
